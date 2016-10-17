@@ -16,7 +16,14 @@ var send = function(message, toSend) {
 	}).catch(function() {
 		console.log("Failed to send message.");
 	});
-}
+};
+var sendDM = function(message, toSend) {
+	message.channel.sendMessage(toSend).then(function() {
+		console.log("DM sent.");
+	}).catch(function() {
+		console.log("Failed to send DM.");
+	});
+};
 var parseTime = function(milliseconds) {
 	var seconds = Math.floor(milliseconds/1000); milliseconds %= 1000;
 	var minutes = Math.floor(seconds/60); seconds %= 60;
