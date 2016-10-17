@@ -1,4 +1,5 @@
 var Discord = require("discord.js");
+var evaluator = require("./evaluator");
 var bot = new Discord.Client();
 var Command = function(config) {
 	this.word = config.word;
@@ -7,7 +8,7 @@ var Command = function(config) {
 };
 Command.prefix = "~";
 Command.check = function(command) {
-	return Command.prefix == command.substr(0, Command.prefix.length);
+	return command.startsWith(Command.prefix);
 };
 var send = function(message, toSend) {
 	message.channel.sendMessage(toSend).then(function() {
@@ -27,84 +28,6 @@ var parseTime = function(milliseconds) {
 		+(minutes?(written=true,minutes+" minutes"):"")+(written?", ":"")
 		+(seconds?(written=true,seconds+" seconds"):"")+(written?", ":"")
 		+(milliseconds?milliseconds+" milliseconds":"");
-};
-var evaluationMemory = {}; // limited to 1024 characters per string.
-var safeFunctions = {
-	"+": { arity: 2, run: function(a, b) { return a+b; }, toString: function() { return "add"; } },
-	"-": { arity: 2, run: function(a, b) { return a-b; }, toString: function() { return "subtract"; } },
-	"*": { arity: 2, run: function(a, b) { return a*b; }, toString: function() { return "multiply"; } },
-	"/": { arity: 2, run: function(a, b) { return a/b; }, toString: function() { return "divide"; } },
-	"%": { arity: 2, run: function(a, b) { return a%b; }, toString: function() { return "modulus"; } },
-	"^": { arity: 2, run: function(a, b) { return a^b; }, toString: function() { return "xor"; } },
-	"&": { arity: 2, run: function(a, b) { return a&b; }, toString: function() { return "bitwise and"; } },
-	"|": { arity: 2, run: function(a, b) { return a|b; }, toString: function() { return "bitwise or"; } },
-	"!": { arity: 1, run: function(a) { return !a; }, toString: function() { return "logical not"; } },
-	"~": { arity: 1, run: function(a) { return ~a; }, toString: function() { return "bitwise not"; } },
-	"substring": { arity: 3, run: function(a, b, c) { return a.substring(b, c); }, toString: function() { return "substring"; } },
-	"substr": { arity: 3, run: function(a, b, c) { return a.substr(b, c); }, toString: function() { return "substr"; } },
-	"true": { arity: 0, run: function() { return true; }, valueOf: function() { return 1; }, toString: function() { return "true"; } },
-	"false": { arity: 0, run: function() { return false; }, valueOf: function() { return 0; }, toString: function() { return "false"; } },
-	"=": { arity: 2, run: function(a, b) {
-		if (typeof b == "string") b = b.substr(0, 1024);
-		return evaluationMemory[a] = b;
-	}, toString: function() { return "assign"; } },
-	"get": { arity: 1, run: function(a) { return evaluationMemory[a]; }, toString: function() { return "get"; } },
-	",": { arity: 2, run: function(a, b) { return b; }, toString: function() { return "comma"; } },
-	"pow": { arity: 2, run: function(a, b) { return Math.pow(a, b); }, toString: function() { return "power"; } },
-	"sin": { arity: 1, run: function(a) { return Math.sin(a); }, toString: function() { return "sin"; } },
-	"cos": { arity: 1, run: function(a) { return Math.cos(a); }, toString: function() { return "cos"; } },
-	"tan": { arity: 1, run: function(a) { return Math.tan(a); }, toString: function() { return "tan"; } },
-	"asin": { arity: 1, run: function(a) { return Math.asin(a); }, toString: function() { return "asin"; } },
-	"acos": { arity: 1, run: function(a) { return Math.acos(a); }, toString: function() { return "acos"; } },
-	"atan": { arity: 1, run: function(a) { return Math.atan(a); }, toString: function() { return "atan"; } },
-	"atan2": { arity: 2, run: function(a, b) { return Math.atan2(a, b); }, toString: function() { return "atan2"; } },
-	"pi": { arity: 0, run: function() { return Math.PI; }, toString: function() { return "pi"; } },
-	"e": { arity: 0, run: function() { return Math.E; }, toString: function() { return "e"; } },
-	"round": { arity: 1, run: function(a) { return Math.round(a); }, toString: function() { return "round"; } },
-	"floor": { arity: 1, run: function(a) { return Math.floor(a); }, toString: function() { return "floor"; } },
-	"ceil": { arity: 1, run: function(a) { return Math.ceil(a); }, toString: function() { return "ceil"; } },
-	"abs": { arity: 1, run: function(a) { return Math.ceil(a); }, toString: function() { return "abs"; } },
-	"sqrt": { arity: 1, run: function(a) { return Math.ceil(a); }, toString: function() { return "sqrt"; } },
-	"random": { arity: 0, run: function() { return Math.random(); }, toString: function() { return "random"; } },
-	"space": { arity: 0, run: function() { return " "; }, toString: function() { return "space"; } },
-};
-// Reverse polish interpreter. Simple.
-var evaluate = function(code) {
-	var tokens = code.split(" ");
-	var stack = [];
-	evaluationMemory = {}; // clean memory
-	for (var i=0;i<tokens.length;i++) {
-		if (tokens[i] !== "") {
-			if (!isNaN(tokens[i])) {
-				stack.push(+tokens[i]); // convert to number
-			} else if (safeFunctions[tokens[i]]) {
-				var f = safeFunctions[tokens[i]];
-				var stk = [];
-				var args = [];
-				if (stack.length < f.arity) {
-					stack.push(f.toString());
-					continue;
-					/**return {
-						message: "Oops. Evaluation failed.",
-						stack: stack,
-						commandsLeft: tokens.slice(i)
-					};**/
-				}
-				for (var j=0;j<f.arity;j++) {
-					stk.push(stack.pop());
-				}
-				while (stk.length) {
-					args.push(stk.pop());
-				}
-				stack.push(f.run.apply(null, args));
-			} else {
-				stack.push(tokens[i]); // it's a string!
-			}
-		}
-	}
-	return {
-		stack: stack
-	};
 };
 var memory = {}; // for remember and recall
 var accessedMemory = {};
@@ -197,6 +120,12 @@ var commands = [
 				+"\nAlso, you can subscribe here: https://www.khanacademy.org/computer-programming/-/4642089130393600");
 		}
 	}), new Command({
+		word: "github",
+		description: "Oh, you want to know more about me? I'm flattered...",
+		execute: function(message, parsedMessage) {
+			send(message, "Visit me on GitHub: https://github.com/Element118/ElementBot-discord/tree/master");
+		}
+	}), new Command({
 		word: "ping",
 		description: "Ping for fun!",
 		execute: function(message, parsedMessage) {
@@ -217,15 +146,15 @@ var commands = [
 		word: "eval",
 		description: (function() {
 			var answer = "Evaluate some postfix code! Here there be commands:\n";
-			for (var i in safeFunctions) {
-				answer += i + " with arity " + safeFunctions[i].arity + "\n";
+			for (var i in evaluator.safeFunctions) {
+				answer += i + " with arity " + evaluator.safeFunctions[i].arity + "\n";
 			}
 			answer += "Try `~eval 1 1 +` for 1+1, `~eval hello world +` for helloworld.";
 			return answer;
 		})(),
 		execute: function(message, parsedMessage) {
 			// code in parsedMessage
-			var result = evaluate(parsedMessage);
+			var result = evaluator.evaluate(parsedMessage);
 			if (result.error) {
 				send(message, result.error + "\nStack:" + result.stack.join(",") + "\nCommands left:" + result.commandsLeft.join(","));
 			} else {
@@ -257,7 +186,7 @@ var commands = [
 		description: "Clears messages. Especially bot spam.",
 		execute: function(message, parsedMessage) {
 			if (message.author.username === "Element118") {
-				// Credit to Eytukan
+				// Credit to Eytukan, not sure if it is working yet.
 				let messageCount = parseInt(parsedMessage);
 				message.channel.fetchMessages({limit: messageCount}).then(messages => message.channel.bulkDelete(messages)).catch(function() {
 					console.log("Failed to clear.");
