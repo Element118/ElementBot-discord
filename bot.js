@@ -200,7 +200,11 @@ var commands = [
 		execute: function(message, parsedMessage) {
 			var tokens = parsedMessage.split(" ");
 			memory[tokens[0]] = tokens.slice(1).join(" ");
-			send(message, "Stored: " + memory[tokens[0]]);
+			message.channel.sendMessage("Stored: " + memory[tokens[0]]).then(function() {
+				console.log("memory."+tokens[0]+" = "+memory[tokens[0]]);
+			}).catch(function() {
+				console.log("Memory not modified.");
+			});
 		}
 	}), new Command({
 		word: "recall",
@@ -208,7 +212,7 @@ var commands = [
 		execute: function(message, parsedMessage) {
 			if (accessedMemory[parsedMessage]) {
 				send(message, "Oops, we are in a loop!");
-				accessedMemory = {}; // allow for more loops?
+				accessedMemory = {}; // allow for more loops
 			} else {
 				send(message, memory[parsedMessage]);
 				if (message.author.client === bot) accessedMemory[parsedMessage] = true;
