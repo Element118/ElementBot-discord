@@ -1,5 +1,26 @@
 var Discord = require("discord.js");
 var evaluator = require("./evaluator");
+var pt = require("./periodicTable");
+var fs = require('fs');
+
+var token = "";
+// get token from other file
+fs.readFile(__dirname + "/token.txt", "utf8", function (err, data) {
+	if (err) {
+		return console.log(err);
+	}
+	token = data;
+	console.log("Obtained token!");
+	bot.login(token).then(function() {
+		console.log("Logged in!");
+		bot.on("message", function(message) {
+			detectCommand(message);
+		});
+	}).catch(function() {
+		console.log("Cannot log in!");
+	});
+});
+
 var bot = new Discord.Client();
 var Command = function(config) {
 	this.word = config.word;
@@ -78,7 +99,12 @@ var commands = [
 		word: "periodictable",
 		description: "Well, I won't be an ElementBot if I didn't know this.",
 		execute: function(message, parsedMessage) {
-			send(message, "Earth, Fire, Air, Water\n...wait, are these the wrong elements?");
+			var el = pt.getElement(parsedMessage);
+			if (el) {
+				send(message, pt.parseElement(el));
+			} else {
+				send(message, "Try typing the name of an element, the symbol or the atomic number.");
+			}
 		}
 	}), new Command({
 		word: "thanks",
@@ -222,11 +248,3 @@ var detectCommand = function(message) {
 	send(message, "Sorry, that was not a valid command.");
 	return false;
 };
-bot.login("[TOKEN REDACTED]").then(function() {
-	console.log("Logged in!");
-	bot.on("message", function(message) {
-		detectCommand(message);
-	});
-}).catch(function() {
-	console.log("Cannot log in!");
-});
