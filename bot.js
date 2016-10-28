@@ -2,7 +2,7 @@ var Discord = require("discord.js");
 var evaluator = require("./evaluator");
 var pt = require("./periodicTable");
 var fs = require('fs');
-
+var zeroWidthSpace = "\u200b"; // at front of safe bot things
 var token = "";
 // get token from other file
 fs.readFile(__dirname + "/token.txt", "utf8", function (err, data) {
@@ -16,9 +16,51 @@ fs.readFile(__dirname + "/token.txt", "utf8", function (err, data) {
 		bot.on("message", function(message) {
 			detectCommand(message);
 		});
-	}).catch(function() {
+		/*bot.setStatus("online", "with generic games", function(err) {
+			console.log("Failed to play game.");
+		});*/
+	}).catch(function(err) {
 		console.log("Cannot log in!");
+		console.log(err);
 	});
+});
+// get memory from file
+var memory = {}; // for remember and recall
+fs.readFile(__dirname + "/memory.txt", "utf8", function(err, data) {
+	if (err) {
+		return console.log(err);
+	}
+	var tokens = data.split("\n");
+	for (var i=0;i<tokens.length;i++) {
+		if (tokens[i] !== "") {
+			var spaceTokens = tokens[i].split(" ");
+			memory[spaceTokens[0]] = spaceTokens.slice(1).join(" ").replace("\\n", "\n");
+		}
+	}
+	console.log("Obtained memory!");
+});
+
+process.stdin.on('data', function(data) {
+	data = (data+"").trim();
+	if (data == "exit" || data == "logout") {
+		console.log("Trying to save...");
+		var memoryString = "";
+		for (var i in memory) {
+			if (i && memory[i]) {
+				memoryString += i+" "+memory[i].replace("\n", "\\n")+"\n";
+			}
+		}
+		fs.writeFile(__dirname + "/memory.txt", memoryString, function(err) {
+			if (err) {
+				console.log(err);
+				return;
+			}
+			console.log("Done!");
+			process.exit();
+		});
+	} else {
+		console.log("Noted "+data.length+" characters: \""+data+"\".");
+	}
 });
 
 var bot = new Discord.Client();
@@ -27,7 +69,7 @@ var Command = function(config) {
 	this.execute = config.execute || function(message, parsedMessage) { send(message, "Not implemented yet."); };
 	this.description = config.description || "No description available."
 };
-Command.prefix = "~";
+Command.prefix = "~E~"; //"@ElementBot#1420 "; // best prefix
 Command.check = function(command) {
 	return command.startsWith(Command.prefix);
 };
@@ -39,7 +81,7 @@ var send = function(message, toSend) {
 	});
 };
 var sendDM = function(message, toSend) {
-	message.channel.sendMessage(toSend).then(function() {
+	message.author.sendMessage(toSend).then(function() {
 		console.log("DM sent.");
 	}).catch(function() {
 		console.log("Failed to send DM.");
@@ -57,7 +99,6 @@ var parseTime = function(milliseconds) {
 		+(seconds?(written=true,seconds+" seconds"):"")+(written?", ":"")
 		+(milliseconds?milliseconds+" milliseconds":"");
 };
-var memory = {}; // for remember and recall
 var accessedMemory = {};
 var commands = [
 	new Command({
@@ -70,17 +111,17 @@ var commands = [
 				for (var i=1;i<commands.length;i++) {
 					helpText += ", " + Command.prefix + commands[i].word;
 				}
-				helpText += "```\nSay `~help command` to get help about a specific command.";
-				send(message, helpText);
+				helpText += "```\nSay `"+Command.prefix+"help command` to get help about a specific command.";
+				sendDM(message, helpText); // send help as DM
 			} else {
 				for (var i=0;i<commands.length;i++) {
 					if (parsedMessage === commands[i].word) {
-						send(message, commands[i].word + ": " + commands[i].description);
+						sendDM(message, Commands.prefix + commands[i].word + ": " + commands[i].description);
 						return; // done
 					}
 				}
 				// command not found
-				send(message, "Sorry. I do not know that command.");
+				sendDM(message, "Sorry. I do not know that command.");
 			}
 		}
 	}), new Command({
@@ -110,28 +151,13 @@ var commands = [
 		word: "thanks",
 		description: "Did I make your day?",
 		execute: function(message, parsedMessage) {
-			send(message, "You are welcome.");
-		}
-	}), new Command({
-		word: "exit",
-		description: "Erm...this is embarrassing...",
-		execute: function(message, parsedMessage) {
-			if (message.author.username === "Element118") {
-				message.channel.sendMessage("Goodbye.").then(function() {
-					console.log("Goodbye.");
-					process.exit(0);
-				}).catch(function() {
-					console.log("What? I'm still here!");
-				});
-			} else {
-				send(message, "Are you embarrassed now!?");
-			}
+			sendDM(message, "You are welcome.");
 		}
 	}), new Command({
 		word: "tsundere",
 		description: "Baka! Why are you using this command?",
 		execute: function(message, parsedMessage) {
-			send(message, "Baka! Why are you using this command? You know it does nothing, don't you?");
+			sendDM(message, "Baka! Why are you using this command? You know it does nothing, don't you?");
 		}
 	}), new Command({
 		word: "uptime",
@@ -149,14 +175,14 @@ var commands = [
 		word: "author",
 		description: "Of course Element118 programmed me.",
 		execute: function(message, parsedMessage) {
-			send(message, "Visit their profile here: https://www.khanacademy.org/profile/Element118"
+			sendDM(message, "Visit their profile here: https://www.khanacademy.org/profile/Element118"
 				+"\nAlso, you can subscribe here: https://www.khanacademy.org/computer-programming/-/4642089130393600");
 		}
 	}), new Command({
 		word: "github",
 		description: "Oh, you want to know more about me? I'm flattered...",
 		execute: function(message, parsedMessage) {
-			send(message, "Visit me on GitHub: https://github.com/Element118/ElementBot-discord/tree/master");
+			sendDM(message, "Visit me on GitHub: https://github.com/Element118/ElementBot-discord/tree/master");
 		}
 	}), new Command({
 		word: "ping",
@@ -182,7 +208,7 @@ var commands = [
 			for (var i in evaluator.safeFunctions) {
 				answer += i + " with arity " + evaluator.safeFunctions[i].arity + "\n";
 			}
-			answer += "Try `~eval 1 1 +` for 1+1, `~eval hello world +` for helloworld.";
+			answer += "Try `"+Command.prefix+"eval 1 1 +` for 1+1, `"+Command.prefix+"eval hello world +` for helloworld.";
 			return answer;
 		})(),
 		execute: function(message, parsedMessage) {
@@ -196,10 +222,10 @@ var commands = [
 		}
 	}), new Command({
 		word: "remember",
-		description: "Remember something. Used with ~recall to retrieve it back.\nSyntax: ~remember identifier data",
+		description: "Remember something. Used with "+Command.prefix+"recall to retrieve it back.\nSyntax: "+Command.prefix+"remember identifier data",
 		execute: function(message, parsedMessage) {
 			var tokens = parsedMessage.split(" ");
-			memory[tokens[0]] = tokens.slice(1).join(" ");
+			memory[tokens[0]] = tokens.slice(1).join(" ").substring(0, 64); // prevent too much echo spam
 			message.channel.sendMessage("Stored: " + memory[tokens[0]]).then(function() {
 				console.log("memory."+tokens[0]+" = "+memory[tokens[0]]);
 			}).catch(function() {
@@ -208,8 +234,9 @@ var commands = [
 		}
 	}), new Command({
 		word: "recall",
-		description: "Recall something you told me to ~remember.\nSyntax: ~recall identifier",
+		description: "Recall something you told me to "+Command.prefix+"remember.\nSyntax: "+Command.prefix+"recall identifier",
 		execute: function(message, parsedMessage) {
+			if (message.author.client !== bot) accessedMemory = {}; // allow for more loops
 			if (accessedMemory[parsedMessage]) {
 				send(message, "Oops, we are in a loop!");
 				accessedMemory = {}; // allow for more loops
@@ -222,15 +249,22 @@ var commands = [
 		word: "clear",
 		description: "Clears messages. Especially bot spam.",
 		execute: function(message, parsedMessage) {
-			if (message.author.username === "Element118") {
-				// Credit to Eytukan, not sure if it is working yet.
+			// Credit to Eytukan
+			if (message.author.id === "104219409991626752") {
 				let messageCount = parseInt(parsedMessage);
-				message.channel.fetchMessages({limit: messageCount}).then(messages => message.channel.bulkDelete(messages)).catch(function() {
-					console.log("Failed to clear.");
+				message.channel.fetchMessages({limit: messageCount}).then(messages => message.channel.bulkDelete(messages)).catch(function(error) {
+					console.log("Failed to fetch.");
+					console.log(error);
 				});
 			} else {
-				send(message, "Only Element118 can do this.");
+				sendDM(message, "Shhh, only Element118 can do this. Don't tell anyone.");
 			}
+		}
+	}), new Command({
+		word: "tellme",
+		description: "Legacy DM test. Left it here for fun.",
+		execute: function(message, parsedMessage) {
+			sendDM(message, "You are beautiful. Don't let anyone tell you otherwise.");
 		}
 	})
 ];
@@ -241,10 +275,12 @@ commands.sort(function(a, b) {
 });
 var detectCommand = function(message) {
 	var tokens = message.content.split(" ");
-	if (!Command.check(tokens[0])) return;
-	var restOfMessage = tokens.slice(1).join(" ");
+	var commandSpaces = Command.prefix.length - Command.prefix.replace(" ", "").length;
+	var instruction = tokens.slice(0, commandSpaces+1).join(" ");
+	if (!Command.check(instruction)) return;
+	var restOfMessage = tokens.slice(commandSpaces+1).join(" ");
 	for (var i=0;i<commands.length;i++) {
-		if (tokens[0] === Command.prefix + commands[i].word) {
+		if (instruction === Command.prefix + commands[i].word) {
 			commands[i].execute(message, restOfMessage);
 			return true;
 		}
